@@ -270,6 +270,7 @@ export default function AdminPersonalTrainers() {
         <DialogContent className="max-w-md">
           {detailCoach && (
             <>
+              <DialogTitle className="sr-only">Perfil do Personal Trainer - {detailCoach.name}</DialogTitle>
               <div className="flex flex-col items-center gap-3 pt-2">
                 <Avatar className="w-20 h-20 border-2 border-primary/30">
                   <AvatarImage src={detailCoach.avatar_url ?? undefined} />

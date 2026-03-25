@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MessageCircle, Sparkles, Instagram, Award, Clock, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -72,6 +72,7 @@ export default function TrainerCard({ coachId, coachName, coachAvatar }: Trainer
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
+          <DialogTitle className="sr-only">Perfil do Personal Trainer - {coachName}</DialogTitle>
           <div className="flex flex-col items-center gap-3 pt-2">
             <Avatar className="w-20 h-20 border-2 border-primary/30">
               <AvatarImage src={coachAvatar ?? undefined} />
