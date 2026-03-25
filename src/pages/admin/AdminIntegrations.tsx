@@ -1,0 +1,167 @@
+import { useState } from "react";
+import { Zap, Shield, Wifi, WifiOff, Loader2, CheckCircle2, XCircle, Copy, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useGymDevices, useGymSettings } from "@/hooks/use-supabase-data";
+import { useCreateDevice, useSimulateAccess } from "@/hooks/use-henry-integration";
+import { useToast } from "@/hooks/use-toast";
+
+export default function AdminIntegrations() {
+  const { data: devices, isLoading: devicesLoading } = useGymDevices();
+  const { data: gym } = useGymSettings();
+  const createDevice = useCreateDevice();
+  const simulateAccess = useSimulateAccess();
+  const { toast } = useToast();
+
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [newDeviceLocation, setNewDeviceLocation] = useState("");
+  const [simToken, setSimToken] = useState("");
+
+  const webhookUrl = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/henry-webhook`;
+
+  const handleAddDevice = () => {
+    if (!newDeviceName.trim()) return;
+    createDevice.mutate(
+      { name: newDeviceName.trim(), location: newDeviceLocation.trim() || undefined },
+      { onSuccess: () => { setNewDeviceName(""); setNewDeviceLocation(""); } }
+    );
+  };
+
+  const handleSimulate = () => {
+    if (!simToken.trim()) return;
+    simulateAccess.mutate({ credential_token: simToken.trim() });
+  };
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    toast({ title: "URL copiada!" });
+  };
+
+  return (
+    <div className="space-y-6 animate-slide-up">
+      <h2 className="text-xl font-bold text-foreground">Integração — Catraca Henry</h2>
+
+      {/* Webhook URL */}
+      <div className="rounded-2xl border border-primary/20 bg-card p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <ExternalLink className="w-5 h-5 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">Webhook URL</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Configure esta URL no painel da Henry como endpoint de validação de acesso.
+        </p>
+        <div className="flex gap-2">
+          <Input value={webhookUrl} readOnly className="font-mono text-xs bg-secondary" />
+          <Button variant="outline" size="sm" onClick={copyUrl}>
+            <Copy className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="rounded-xl bg-secondary/50 p-3 space-y-1">
+          <p className="text-xs font-medium text-foreground">Payload esperado (POST JSON):</p>
+          <pre className="text-xs text-muted-foreground font-mono whitespace-pre-wrap">{`{
+  "event": "access_request",
+  "credential_token": "<token_hash>",
+  "device_serial": "<nome_dispositivo>"
+}`}</pre>
+        </div>
+      </div>
+
+      {/* Devices */}
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Shield className="w-5 h-5 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">Dispositivos ({devices?.length ?? 0})</h3>
+        </div>
+
+        {devicesLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        ) : (
+          <div className="space-y-2">
+            {(devices ?? []).map((d: any) => (
+              <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-secondary/30 px-4 py-3">
+                {d.status === "active" ? (
+                  <Wifi className="w-4 h-4 text-success" />
+                ) : (
+                  <WifiOff className="w-4 h-4 text-muted-foreground" />
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">{d.name}</p>
+                  <p className="text-xs text-muted-foreground">{d.location ?? "Sem localização"}</p>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  d.status === "active" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+                }`}>
+                  {d.status === "active" ? "Online" : d.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add device */}
+        <div className="border-t border-border pt-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">Adicionar dispositivo</p>
+          <div className="flex gap-2">
+            <Input
+              value={newDeviceName}
+              onChange={(e) => setNewDeviceName(e.target.value)}
+              placeholder="Nome / Serial"
+              className="flex-1"
+            />
+            <Input
+              value={newDeviceLocation}
+              onChange={(e) => setNewDeviceLocation(e.target.value)}
+              placeholder="Localização"
+              className="flex-1"
+            />
+            <Button size="sm" onClick={handleAddDevice} disabled={createDevice.isPending}>
+              {createDevice.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Adicionar"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Simulator */}
+      <div className="rounded-2xl border border-warning/30 bg-card p-5 space-y-3">
+        <h3 className="text-base font-semibold text-foreground">🧪 Simulador de Acesso</h3>
+        <p className="text-xs text-muted-foreground">
+          Teste a validação da catraca sem hardware físico. Use o token_hash de uma credencial ativa.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            value={simToken}
+            onChange={(e) => setSimToken(e.target.value)}
+            placeholder="Token hash da credencial"
+            className="flex-1"
+          />
+          <Button size="sm" onClick={handleSimulate} disabled={simulateAccess.isPending}>
+            {simulateAccess.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simular"}
+          </Button>
+        </div>
+
+        {simulateAccess.data && (
+          <div className={`flex items-center gap-2 rounded-xl p-3 ${
+            simulateAccess.data.decision === "allow"
+              ? "bg-success/10 border border-success/20"
+              : "bg-destructive/10 border border-destructive/20"
+          }`}>
+            {simulateAccess.data.decision === "allow" ? (
+              <CheckCircle2 className="w-5 h-5 text-success" />
+            ) : (
+              <XCircle className="w-5 h-5 text-destructive" />
+            )}
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {simulateAccess.data.decision === "allow" ? "Acesso Permitido" : "Acesso Negado"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {simulateAccess.data.member_name && `Aluno: ${simulateAccess.data.member_name} · `}
+                Motivo: {simulateAccess.data.reason}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

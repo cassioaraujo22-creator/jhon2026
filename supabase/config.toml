@@ -1,0 +1,7 @@
+project_id = "tvpplnpsnvxxyrprhzkb"
+
+[functions.generate-exercise-media]
+verify_jwt = false
+
+[functions.henry-webhook]
+verify_jwt = false
