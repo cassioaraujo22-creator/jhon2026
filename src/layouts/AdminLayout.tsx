@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 
 const sidebarItems = [
   { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
@@ -101,6 +101,7 @@ export default function AdminLayout() {
               </button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0 flex flex-col">
+              <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
               <div className="flex items-center h-16 px-4 border-b border-border">
                 <span className="text-lg font-bold text-gradient-purple">FitAdmin</span>
               </div>

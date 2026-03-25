@@ -268,6 +268,7 @@ export default function AdminPersonalTrainers() {
       {/* Detail Dialog */}
       <Dialog open={!!detailCoach} onOpenChange={(o) => !o && setDetailCoach(null)}>
         <DialogContent className="max-w-md">
+          <DialogTitle className="sr-only">Perfil do Personal Trainer</DialogTitle>
           {detailCoach && (
             <>
               <div className="flex flex-col items-center gap-3 pt-2">
