@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Crown, ArrowRight } from "lucide-react";
-import bannerImg from "@/assets/banner-fitness.png";
+import bannerImg from "@/assets/banner-fitness.jpg";
 
 interface NoPlanBannerProps {
   hasActivePlan: boolean;
