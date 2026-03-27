@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["pwa-icon.svg"],
+      workbox: {
+        // Workaround for intermittent Workbox terser crash on Node 24 during build.
+        mode: "development",
+      },
       manifest: {
         name: "Fit Pro Wave",
         short_name: "FitPro",

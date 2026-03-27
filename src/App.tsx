@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import AppThemeSync from "@/components/AppThemeSync";
 import PwaAndPushManager from "@/components/PwaAndPushManager";
@@ -71,6 +71,8 @@ const App = () => (
             <Route path="/" element={<OnboardingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/onboarding" element={<ProtectedRoute><OnboardingFlowPage /></ProtectedRoute>} />
+            <Route path="/nutrition" element={<ProtectedRoute requireStaff><Navigate to="/admin/nutrition" replace /></ProtectedRoute>} />
+            <Route path="/app/nutrition" element={<ProtectedRoute><Navigate to="/app/diet" replace /></ProtectedRoute>} />
 
             {/* Student App — protected */}
             <Route path="/app" element={<ProtectedRoute><StudentLayout><StudentHome /></StudentLayout></ProtectedRoute>} />

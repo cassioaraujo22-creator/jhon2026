@@ -52,13 +52,19 @@ export function useGymRecipes() {
   const { profile } = useAuth();
   return useQuery({
     queryKey: ["gym-recipes", profile?.gym_id],
-    enabled: !!profile?.gym_id,
+    enabled: true,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("recipes" as any)
         .select("*")
-        .eq("gym_id", profile!.gym_id!)
         .order("created_at", { ascending: false });
+
+      if (profile?.gym_id) {
+        // Also include legacy rows that were created without gym_id.
+        query = query.or(`gym_id.eq.${profile.gym_id},gym_id.is.null`);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as Recipe[];
     },

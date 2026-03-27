@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, Save, Upload, ImageIcon, X, Bell, Smartphone } from "lucide-react";
+import { Loader2, Save, Upload, ImageIcon, X, Bell, Smartphone, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGymSettings } from "@/hooks/use-supabase-data";
 import { useUpdateGym } from "@/hooks/use-admin-mutations";
@@ -23,6 +23,7 @@ export default function AdminSettings() {
   const noPlanBannerFileRef = useRef<HTMLInputElement>(null);
   const logoFileRef = useRef<HTMLInputElement>(null);
   const pwaIconFileRef = useRef<HTMLInputElement>(null);
+  const promoBannerFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (gym) {
@@ -37,6 +38,7 @@ export default function AdminSettings() {
   const heroImageUrl = settings?.hero_image_url as string | undefined;
   const noPlanBannerImageUrl = settings?.no_plan_banner_image_url as string | undefined;
   const pwaIconUrl = (settings?.pwa_icon_url as string | undefined) ?? logoUrl ?? undefined;
+  const homePromoBanner = (settings?.home_promo_banner as any) ?? {};
   const pushEnabled = Boolean(settings?.push_enabled);
   const vapidPublicKey = (settings?.push_vapid_public_key as string | undefined) ?? "";
   const appDisplayName = (settings?.app_display_name as string | undefined) ?? name ?? "";
@@ -153,7 +155,67 @@ export default function AdminSettings() {
     setSettings((prev: any) => ({ ...prev, pwa_icon_url: null }));
   };
 
+  const updateHomePromoBanner = (updates: Record<string, any>) => {
+    setSettings((prev: any) => ({
+      ...prev,
+      home_promo_banner: {
+        id: prev?.home_promo_banner?.id ?? crypto.randomUUID(),
+        created_at: prev?.home_promo_banner?.created_at ?? new Date().toISOString(),
+        is_active: false,
+        priority: 1,
+        overlay_color: "#0b0b12",
+        overlay_opacity: 0.42,
+        ...prev?.home_promo_banner,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      },
+    }));
+  };
+
+  const handlePromoBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !gym || !profile?.id) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${profile.id}/gym/${gym.id}/home-promo-banner.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      const imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      updateHomePromoBanner({ image_url: imageUrl });
+      toast({ title: "Imagem do banner carregada!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao enviar banner", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePromoBannerImage = () => {
+    updateHomePromoBanner({ image_url: null });
+  };
+
   const handleSave = async () => {
+    const banner = (settings?.home_promo_banner as any) ?? {};
+    if (banner?.is_active && !banner?.image_url) {
+      toast({
+        title: "Banner ativo sem imagem",
+        description: "Envie uma imagem ou desative o banner antes de salvar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!!banner?.button_text !== !!banner?.button_link) {
+      toast({
+        title: "Campos do botão incompletos",
+        description: "Preencha texto e link do botão, ou deixe ambos vazios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     await updateGym.mutateAsync({ name, accent_color: accentColor, timezone, logo_url: logoUrl, settings });
   };
 
@@ -470,6 +532,129 @@ export default function AdminSettings() {
             <span className="text-sm text-muted-foreground">Clique para enviar uma imagem</span>
           </button>
         )}
+      </div>
+
+      {/* Home Promotional Banner */}
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Megaphone className="w-4 h-4 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">Banner Promocional da Home</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Configure um banner promocional com imagem, texto e botão para aparecer automaticamente na Home.
+        </p>
+
+        <input type="file" ref={promoBannerFileRef} accept="image/*" onChange={handlePromoBannerUpload} className="hidden" />
+
+        {homePromoBanner?.image_url ? (
+          <div className="relative rounded-xl overflow-hidden h-40 border border-border">
+            <img src={homePromoBanner.image_url} alt="Banner promocional" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
+            <div className="absolute top-2 right-2 flex gap-2">
+              <Button
+                size="icon"
+                variant="secondary"
+                className="w-8 h-8 rounded-lg"
+                onClick={() => promoBannerFileRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+              <Button size="icon" variant="destructive" className="w-8 h-8 rounded-lg" onClick={removePromoBannerImage}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => promoBannerFileRef.current?.click()}
+            disabled={uploading}
+            className="w-full h-32 rounded-xl border-2 border-dashed border-border hover:border-primary/40 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            {uploading ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <ImageIcon className="w-6 h-6 text-muted-foreground" />}
+            <span className="text-sm text-muted-foreground">Clique para enviar a imagem do banner</span>
+          </button>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm text-muted-foreground">Título</label>
+            <input
+              value={(homePromoBanner?.title as string | undefined) ?? ""}
+              onChange={(e) => updateHomePromoBanner({ title: e.target.value })}
+              placeholder="Ex.: Transforme seu treino hoje"
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm text-muted-foreground">Subtítulo</label>
+            <input
+              value={(homePromoBanner?.subtitle as string | undefined) ?? ""}
+              onChange={(e) => updateHomePromoBanner({ subtitle: e.target.value })}
+              placeholder="Texto curto para destacar a promoção"
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Texto do botão</label>
+            <input
+              value={(homePromoBanner?.button_text as string | undefined) ?? ""}
+              onChange={(e) => updateHomePromoBanner({ button_text: e.target.value })}
+              placeholder="Ex.: Quero aproveitar"
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Link / Rota do botão</label>
+            <input
+              value={(homePromoBanner?.button_link as string | undefined) ?? ""}
+              onChange={(e) => updateHomePromoBanner({ button_link: e.target.value })}
+              placeholder="Ex.: /app/store ou https://..."
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Prioridade</label>
+            <input
+              type="number"
+              min={1}
+              value={Number(homePromoBanner?.priority ?? 1)}
+              onChange={(e) => updateHomePromoBanner({ priority: Number(e.target.value || 1) })}
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Cor do overlay</label>
+            <input
+              value={(homePromoBanner?.overlay_color as string | undefined) ?? "#0b0b12"}
+              onChange={(e) => updateHomePromoBanner({ overlay_color: e.target.value })}
+              placeholder="#0b0b12"
+              className="w-full h-10 rounded-xl bg-secondary border border-border px-4 text-sm text-foreground focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm text-muted-foreground">
+              Intensidade do overlay ({Math.round(Number(homePromoBanner?.overlay_opacity ?? 0.42) * 100)}%)
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={Number(homePromoBanner?.overlay_opacity ?? 0.42)}
+              onChange={(e) => updateHomePromoBanner({ overlay_opacity: Number(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        <label className="flex items-center justify-between cursor-pointer pt-1" onClick={() => updateHomePromoBanner({ is_active: !homePromoBanner?.is_active })}>
+          <span className="text-sm text-foreground">Ativar banner promocional na Home</span>
+          <div className={`w-10 h-6 rounded-full relative transition-colors ${homePromoBanner?.is_active ? "bg-primary" : "bg-muted"}`}>
+            <div className={`w-4 h-4 bg-primary-foreground rounded-full absolute top-1 transition-all ${homePromoBanner?.is_active ? "right-1" : "left-1"}`} />
+          </div>
+        </label>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 space-y-4">

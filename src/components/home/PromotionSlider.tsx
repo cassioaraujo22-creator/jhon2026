@@ -4,6 +4,7 @@ import { Tag, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 function formatPrice(cents: number) {
   return `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
@@ -11,24 +12,47 @@ function formatPrice(cents: number) {
 
 export default memo(function PromotionSlider() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
 
-  const { data: promos } = useQuery({
-    queryKey: ["home-promotions"],
+  const { data: sliderData } = useQuery({
+    queryKey: ["home-promotions", profile?.gym_id],
     staleTime: 120_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("store_products")
-        .select("id, name, slug, images, price_cents, compare_at_price_cents, promotion_label")
-        .eq("is_promotion", true)
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data as any[];
+      const queryBase = () => {
+        let q = supabase
+          .from("store_products")
+          .select("id, name, slug, images, price_cents, compare_at_price_cents, promotion_label")
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(10);
+
+        if (profile?.gym_id) {
+          q = q.eq("gym_id", profile.gym_id);
+        }
+
+        return q;
+      };
+
+      const promotionsRes = await queryBase().eq("is_promotion", true);
+      if (promotionsRes.error) throw promotionsRes.error;
+      if ((promotionsRes.data ?? []).length > 0) {
+        return { title: "Promoções", items: promotionsRes.data as any[] };
+      }
+
+      const featuredRes = await queryBase().eq("is_featured", true);
+      if (featuredRes.error) throw featuredRes.error;
+      if ((featuredRes.data ?? []).length > 0) {
+        return { title: "Destaques da Loja", items: featuredRes.data as any[] };
+      }
+
+      const latestRes = await queryBase();
+      if (latestRes.error) throw latestRes.error;
+      return { title: "Produtos da Loja", items: (latestRes.data ?? []) as any[] };
     },
   });
 
-  if (!promos || promos.length === 0) return null;
+  const promos = sliderData?.items ?? [];
+  if (promos.length === 0) return null;
 
   return (
     <motion.div
@@ -40,7 +64,7 @@ export default memo(function PromotionSlider() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Tag className="w-4 h-4 text-warning" />
-          <h3 className="text-sm font-bold text-foreground">Promoções</h3>
+          <h3 className="text-sm font-bold text-foreground">{sliderData?.title ?? "Produtos da Loja"}</h3>
         </div>
         <button
           onClick={() => navigate("/app/store")}

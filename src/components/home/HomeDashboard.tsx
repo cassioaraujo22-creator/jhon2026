@@ -19,6 +19,7 @@ import PromotionSlider from "./PromotionSlider";
 import NoPlanBanner from "./NoPlanBanner";
 import ContinueWorkoutBanner from "./ContinueWorkoutBanner";
 import TodayDietBlock from "./TodayDietBlock";
+import HomePromoBanner from "./HomePromoBanner";
 
 const getLocalDayIso = (date = new Date()) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -48,6 +49,7 @@ export default memo(function HomeDashboard() {
 
   const heroImage = (gym?.settings as any)?.hero_image_url || homeHero;
   const pwaInstallEnabled = Boolean((gym?.settings as any)?.pwa_install_enabled);
+  const homePromoBanner = (gym?.settings as any)?.home_promo_banner;
   const personalTrainerId = (membership?.plans as any)?.personal_trainer_id;
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -214,8 +216,8 @@ export default memo(function HomeDashboard() {
       {/* Continue Workout Banner */}
       <ContinueWorkoutBanner />
 
-      {/* Diet block */}
-      <TodayDietBlock />
+      {/* Home Promotional Banner */}
+      <HomePromoBanner banner={homePromoBanner} />
 
       {/* Today's Workout */}
       {isLoading ? (
@@ -289,6 +291,9 @@ export default memo(function HomeDashboard() {
 
       {/* Body Focus */}
       <BodyFocusCarousel />
+
+      {/* Diet block */}
+      <TodayDietBlock />
       </div>
     </div>
   );

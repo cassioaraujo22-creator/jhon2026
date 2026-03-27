@@ -39,6 +39,79 @@ const MEAL_OPTIONS = [
   { value: "ceia", label: "Ceia" },
 ];
 
+const DEFAULT_RECIPES = [
+  {
+    title: "Iogurte Grego com Frutas e Chia",
+    description: "Proteico, rápido e ótimo para o café da manhã.",
+    meal_type: "cafe_da_manha",
+    prep_time_minutes: 5,
+    calories: 320,
+    protein_g: 22,
+    carbs_g: 35,
+    fat_g: 10,
+    ingredients: ["170g iogurte grego natural", "1 banana (ou frutas vermelhas)", "1 c.s. chia", "1 c.chá mel (opcional)"],
+    steps: ["Misture o iogurte com a chia.", "Adicione as frutas por cima.", "Finalize com mel se desejar."],
+    image_url: "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&h=400&fit=crop",
+    is_active: true,
+  },
+  {
+    title: "Frango Grelhado com Batata Doce",
+    description: "Refeição completa para ganho de massa ou recomposição.",
+    meal_type: "almoco",
+    prep_time_minutes: 25,
+    calories: 520,
+    protein_g: 45,
+    carbs_g: 50,
+    fat_g: 12,
+    ingredients: ["180g peito de frango", "200g batata doce", "Sal e pimenta", "Azeite (1 c.chá)", "Páprica/ervas (opcional)"],
+    steps: ["Tempere o frango.", "Grelhe até dourar.", "Asse ou cozinhe a batata doce.", "Sirva com 1 fio de azeite."],
+    image_url: "https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=400&h=400&fit=crop",
+    is_active: true,
+  },
+  {
+    title: "Overnight Oats Proteico",
+    description: "Prático para preparar na noite anterior.",
+    meal_type: "cafe_da_manha",
+    prep_time_minutes: 10,
+    calories: 410,
+    protein_g: 30,
+    carbs_g: 45,
+    fat_g: 12,
+    ingredients: ["50g aveia", "200ml leite ou bebida vegetal", "1 scoop whey (opcional)", "1 c.s. pasta de amendoim", "Canela"],
+    steps: ["Misture tudo em um pote.", "Leve à geladeira por 6-8h.", "Consuma gelado."],
+    image_url: "https://images.unsplash.com/photo-1517673400267-0251440c45dc?w=400&h=400&fit=crop",
+    is_active: true,
+  },
+  {
+    title: "Salmão com Quinoa e Legumes",
+    description: "Rica em ômega-3 e com bons carboidratos.",
+    meal_type: "jantar",
+    prep_time_minutes: 30,
+    calories: 610,
+    protein_g: 40,
+    carbs_g: 45,
+    fat_g: 28,
+    ingredients: ["150g salmão", "80g quinoa cozida", "Mix de legumes", "Sal", "Limão", "Azeite (1 c.chá)"],
+    steps: ["Tempere o salmão com sal e limão.", "Grelhe/asse o salmão.", "Cozinhe a quinoa.", "Salteie os legumes e monte o prato."],
+    image_url: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400&h=400&fit=crop",
+    is_active: true,
+  },
+  {
+    title: "Omelete Fit de Espinafre",
+    description: "Opção leve para lanche ou jantar.",
+    meal_type: "lanche",
+    prep_time_minutes: 12,
+    calories: 290,
+    protein_g: 22,
+    carbs_g: 6,
+    fat_g: 18,
+    ingredients: ["2 ovos", "1 xíc. espinafre", "Sal", "Pimenta", "Queijo light (opcional)"],
+    steps: ["Bata os ovos e tempere.", "Adicione o espinafre.", "Cozinhe em frigideira antiaderente."],
+    image_url: "https://images.unsplash.com/photo-1510693206972-df098062cb71?w=400&h=400&fit=crop",
+    is_active: true,
+  },
+];
+
 type RecipeForm = {
   id?: string;
   title: string;
@@ -139,6 +212,7 @@ export default function AdminNutrition() {
 
   const recipeFileRef = useRef<HTMLInputElement>(null);
   const [uploadingRecipeImage, setUploadingRecipeImage] = useState(false);
+  const [seedAttempted, setSeedAttempted] = useState(false);
 
   const members = useMemo(() => {
     const list = (memberships ?? []).map((m: any) => ({
@@ -385,8 +459,46 @@ export default function AdminNutrition() {
     }
   };
 
+  const seedDefaultRecipes = async () => {
+    if (!profile?.gym_id) {
+      toast({
+        title: "Seu perfil está sem academia",
+        description: "Defina o gym_id do usuário para criar receitas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const existingTitles = new Set((recipes ?? []).map((r: any) => String(r.title || "").toLowerCase()));
+      const missing = DEFAULT_RECIPES.filter((r) => !existingTitles.has(r.title.toLowerCase()));
+
+      if (missing.length === 0) {
+        toast({ title: "As receitas padrão já existem." });
+        return;
+      }
+
+      for (const recipe of missing) {
+        await createRecipe.mutateAsync(recipe);
+      }
+
+      toast({ title: `${missing.length} receitas padrão criadas!` });
+    } catch (e: any) {
+      toast({ title: "Erro ao popular receitas", description: e.message, variant: "destructive" });
+    }
+  };
+
   const loading = recipesLoading || dietsLoading || assignmentsLoading;
   const canManageNutrition = roles.includes("owner") || roles.includes("super_admin") || roles.includes("nutritionist");
+
+  useEffect(() => {
+    if (activeTab !== "recipes") return;
+    if (loading) return;
+    if (seedAttempted) return;
+    if ((recipes ?? []).length > 0) return;
+    setSeedAttempted(true);
+    void seedDefaultRecipes();
+  }, [activeTab, loading, recipes, seedAttempted]);
 
   if (!canManageNutrition) {
     return (
@@ -423,7 +535,11 @@ export default function AdminNutrition() {
 
       {!loading && activeTab === "recipes" && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={seedDefaultRecipes} disabled={createRecipe.isPending}>
+              <Plus className="w-4 h-4" />
+              Popular receitas padrão
+            </Button>
             <Button size="sm" onClick={openCreateRecipe}>
               <Plus className="w-4 h-4" />
               Nova Receita
