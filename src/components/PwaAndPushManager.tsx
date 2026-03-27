@@ -95,11 +95,6 @@ export default function PwaAndPushManager() {
   } = usePwaPush(vapidPublicKey, pushEnabled);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => null);
-  }, []);
-
-  useEffect(() => {
     document.title = appName;
     try {
       localStorage.setItem(APP_NAME_STORAGE_KEY, appName);

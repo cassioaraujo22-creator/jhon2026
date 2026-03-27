@@ -71,3 +71,38 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## App Version Update Flow (Vite + VPS)
+
+This project includes a production-ready app update detector:
+
+- Every `npm run build` generates `dist/version.json`
+- The running app polls `/version.json` and compares with current build id
+- If a new version is detected, a fixed banner appears with "Atualizar agora"
+- Clicking update clears runtime caches, updates service worker, and reloads with cache-busting
+
+### Generated version file
+
+Build output includes:
+
+```json
+{
+  "version": "2026-03-27T19:30:00.000Z",
+  "buildId": "1774640000000",
+  "buildTime": "2026-03-27T19:30:00.000Z"
+}
+```
+
+### VPS / Nginx recommendation
+
+To ensure fast update detection, serve `/version.json` without aggressive cache:
+
+```nginx
+location = /version.json {
+  add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+  expires -1;
+  try_files $uri =404;
+}
+```
+
+If you use Cloudflare/CDN, set a bypass or very low TTL for `/version.json`.

@@ -219,6 +219,7 @@ export default function AdminSettings() {
     await updateGym.mutateAsync({ name, accent_color: accentColor, timezone, logo_url: logoUrl, settings });
     try {
       localStorage.setItem("gym_display_name", name.trim());
+      localStorage.setItem("force_update_required", String(Boolean(settings?.force_update_required)));
     } catch (_error) {
       // Ignore localStorage access failures.
     }
@@ -371,6 +372,7 @@ export default function AdminSettings() {
             { key: "push_enabled", label: "Ativar push notifications no app" },
             { key: "push_auto_prompt", label: "Solicitar permissão de push automaticamente" },
             { key: "pwa_install_enabled", label: "Exibir incentivo de instalação (PWA)" },
+            { key: "force_update_required", label: "Exigir atualização quando houver nova versão" },
           ].map(({ key, label }) => (
             <label key={key} className="flex items-center justify-between cursor-pointer" onClick={() => toggleSetting(key)}>
               <span className="text-sm text-foreground">{label}</span>

@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import fs from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -12,20 +11,14 @@ function createBuildInfo() {
     process.env.VERCEL_GIT_COMMIT_SHA ||
     process.env.GITHUB_SHA?.slice(0, 12) ||
     `${Date.now()}`;
-  const version = process.env.npm_package_version || "0.0.0";
+  const version = process.env.VITE_APP_VERSION || buildTime;
   return { version, buildId, buildTime };
-}
-
-function writeVersionFile(buildInfo: { version: string; buildId: string; buildTime: string }) {
-  const publicDir = path.resolve(__dirname, "public");
-  const versionPath = path.resolve(publicDir, "version.json");
-  if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
-  fs.writeFileSync(versionPath, JSON.stringify(buildInfo, null, 2));
 }
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const buildInfo = createBuildInfo();
+  const versionJson = JSON.stringify(buildInfo, null, 2);
 
   return {
     server: {
@@ -40,11 +33,24 @@ export default defineConfig(({ mode }) => {
       mode === "development" && componentTagger(),
       {
         name: "build-version-json",
-        buildStart() {
-          writeVersionFile(buildInfo);
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.url?.startsWith("/version.json")) {
+              res.statusCode = 200;
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+              res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+              res.end(versionJson);
+              return;
+            }
+            next();
+          });
         },
-        configureServer() {
-          writeVersionFile(buildInfo);
+        generateBundle() {
+          this.emitFile({
+            type: "asset",
+            fileName: "version.json",
+            source: versionJson,
+          });
         },
       },
       VitePWA({
