@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import AppThemeSync from "@/components/AppThemeSync";
 import PwaAndPushManager from "@/components/PwaAndPushManager";
+import AppUpdateBanner from "@/components/AppUpdateBanner";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LoginPage from "./pages/auth/LoginPage";
 import OnboardingPage from "./pages/auth/OnboardingPage";
@@ -68,6 +69,7 @@ const App = () => (
         <AuthProvider>
           <AppThemeSync />
           <PwaAndPushManager />
+          <AppUpdateBanner />
           <Routes>
             <Route path="/" element={<OnboardingPage />} />
             <Route path="/login" element={<LoginPage />} />
