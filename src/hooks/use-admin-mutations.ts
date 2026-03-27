@@ -17,11 +17,47 @@ export function useCreatePlan() {
   const gymId = useGymId();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async (plan: { name: string; price_cents: number; billing_cycle: string; goal_type: string; level?: string; duration_weeks?: number; benefits?: any }) => {
-      const { error } = await supabase.from("plans").insert({ ...plan, gym_id: gymId! } as any);
+    mutationFn: async (plan: {
+      name: string;
+      price_cents: number;
+      billing_cycle: string;
+      goal_type: string;
+      level?: string;
+      duration_weeks?: number;
+      benefits?: any;
+      cycles?: Array<{
+        cycle_name: string;
+        duration_days: number;
+        price_cents: number;
+        sort_order: number;
+        active: boolean;
+        external_product_code?: string | null;
+      }>;
+    }) => {
+      const { cycles = [], ...basePlan } = plan;
+      const { data: createdPlan, error } = await supabase
+        .from("plans")
+        .insert({ ...basePlan, gym_id: gymId! } as any)
+        .select("id")
+        .single();
       if (error) throw error;
+
+      if (cycles.length > 0) {
+        const { error: cyclesError } = await supabase.from("plan_cycles" as any).insert(
+          cycles.map((cycle) => ({
+            ...cycle,
+            plan_id: createdPlan.id,
+            gym_id: gymId!,
+          }))
+        );
+        if (cyclesError) throw cyclesError;
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["gym-plans"] }); toast({ title: "Plano criado!" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-plans"] });
+      qc.invalidateQueries({ queryKey: ["available-plans"] });
+      toast({ title: "Plano criado!" });
+    },
     onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 }
@@ -30,11 +66,53 @@ export function useUpdatePlan() {
   const qc = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; [key: string]: any }) => {
+    mutationFn: async ({
+      id,
+      cycles,
+      ...updates
+    }: {
+      id: string;
+      cycles?: Array<{
+        cycle_name: string;
+        duration_days: number;
+        price_cents: number;
+        sort_order: number;
+        active: boolean;
+        external_product_code?: string | null;
+      }>;
+      [key: string]: any;
+    }) => {
       const { error } = await supabase.from("plans").update(updates).eq("id", id);
       if (error) throw error;
+
+      if (cycles) {
+        const { error: deleteError } = await supabase.from("plan_cycles" as any).delete().eq("plan_id", id);
+        if (deleteError) throw deleteError;
+
+        if (cycles.length > 0) {
+          const { data: planData, error: planError } = await supabase
+            .from("plans")
+            .select("gym_id")
+            .eq("id", id)
+            .single();
+          if (planError) throw planError;
+
+          const { error: cyclesError } = await supabase.from("plan_cycles" as any).insert(
+            cycles.map((cycle) => ({
+              ...cycle,
+              plan_id: id,
+              gym_id: planData.gym_id,
+            }))
+          );
+          if (cyclesError) throw cyclesError;
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["gym-plans"] }); toast({ title: "Plano atualizado!" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym-plans"] });
+      qc.invalidateQueries({ queryKey: ["available-plans"] });
+      toast({ title: "Plano atualizado!" });
+    },
     onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
   });
 }

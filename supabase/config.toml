@@ -1,4 +1,4 @@
-project_id = "tvpplnpsnvxxyrprhzkb"
+project_id = "rmlqcgdcsuspdcmpcbls"
 
 [functions.generate-exercise-media]
 verify_jwt = false

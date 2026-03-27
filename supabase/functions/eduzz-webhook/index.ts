@@ -64,6 +64,23 @@ function normalizeSubscriptionStatus(rawStatus: string | null, eventType: string
   return "active";
 }
 
+function getLegacyPlanDurationDays(plan: { duration_weeks: number | null; billing_cycle: string | null } | null): number {
+  if (!plan) return 30;
+  if (typeof plan.duration_weeks === "number" && plan.duration_weeks > 0) {
+    return Math.max(1, Math.round(plan.duration_weeks * 7));
+  }
+  switch (plan.billing_cycle) {
+    case "monthly":
+      return 30;
+    case "semiannual":
+      return 180;
+    case "annual":
+      return 365;
+    default:
+      return 30;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -171,6 +188,12 @@ Deno.serve(async (req) => {
       "contact.email",
     ])?.toLowerCase();
     const planIdFromPayload = pickString(body, ["plan_id", "metadata.plan_id"]);
+    const planCycleIdFromPayload = pickString(body, [
+      "plan_cycle_id",
+      "cycle_id",
+      "metadata.plan_cycle_id",
+      "metadata.cycle_id",
+    ]);
 
     const amountCentsRaw = pickNumber(body, [
       "amount_cents",
@@ -230,6 +253,28 @@ Deno.serve(async (req) => {
     }
 
     let resolvedPlanId: string | null = null;
+    let resolvedPlanCycle: {
+      id: string;
+      plan_id: string;
+      cycle_name: string;
+      duration_days: number;
+      price_cents: number;
+      external_product_code: string | null;
+    } | null = null;
+
+    if (planCycleIdFromPayload) {
+      const { data: explicitCycle } = await supabase
+        .from("plan_cycles")
+        .select("id, plan_id, cycle_name, duration_days, price_cents, external_product_code")
+        .eq("id", planCycleIdFromPayload)
+        .eq("gym_id", gymId)
+        .maybeSingle();
+      if (explicitCycle?.id) {
+        resolvedPlanCycle = explicitCycle;
+        resolvedPlanId = explicitCycle.plan_id;
+      }
+    }
+
     if (planIdFromPayload) {
       const { data: explicitPlan } = await supabase
         .from("plans")
@@ -238,6 +283,20 @@ Deno.serve(async (req) => {
         .eq("gym_id", gymId)
         .maybeSingle();
       resolvedPlanId = explicitPlan?.id ?? null;
+    }
+
+    if (!resolvedPlanCycle && providerProductCode) {
+      const { data: cycleFromProduct } = await supabase
+        .from("plan_cycles")
+        .select("id, plan_id, cycle_name, duration_days, price_cents, external_product_code")
+        .eq("gym_id", gymId)
+        .eq("external_product_code", providerProductCode)
+        .eq("active", true)
+        .maybeSingle();
+      if (cycleFromProduct?.id) {
+        resolvedPlanCycle = cycleFromProduct;
+        resolvedPlanId = cycleFromProduct.plan_id;
+      }
     }
 
     if (!resolvedPlanId && providerProductCode) {
@@ -257,6 +316,35 @@ Deno.serve(async (req) => {
       resolvedPlanId = activeMembership?.plan_id ?? null;
     }
 
+    if (!resolvedPlanCycle && resolvedPlanId) {
+      const { data: defaultPlanCycle } = await supabase
+        .from("plan_cycles")
+        .select("id, plan_id, cycle_name, duration_days, price_cents, external_product_code")
+        .eq("plan_id", resolvedPlanId)
+        .eq("gym_id", gymId)
+        .eq("active", true)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (defaultPlanCycle?.id) {
+        resolvedPlanCycle = defaultPlanCycle;
+      }
+    }
+
+    let resolvedPlanLegacy: { duration_weeks: number | null; billing_cycle: string | null } | null = null;
+    if (resolvedPlanId) {
+      const { data: planData } = await supabase
+        .from("plans")
+        .select("duration_weeks, billing_cycle")
+        .eq("id", resolvedPlanId)
+        .eq("gym_id", gymId)
+        .maybeSingle();
+      resolvedPlanLegacy = planData;
+    }
+
+    const cycleDays = resolvedPlanCycle?.duration_days ?? getLegacyPlanDurationDays(resolvedPlanLegacy);
+    const cycleName = resolvedPlanCycle?.cycle_name ?? null;
+
     if (providerSubscriptionId) {
       const { data: existingSubscription } = await supabase
         .from("subscriptions")
@@ -273,6 +361,9 @@ Deno.serve(async (req) => {
           .update({
             status: subscriptionStatus,
             plan_id: resolvedPlanId,
+            plan_cycle_id: resolvedPlanCycle?.id ?? null,
+            plan_cycle_name: cycleName,
+            plan_cycle_days: cycleDays,
             next_billing_at: toIsoDate(pickString(body, ["next_billing_at", "subscription.next_billing_at"])),
           })
           .eq("id", existingSubscription.id);
@@ -281,6 +372,9 @@ Deno.serve(async (req) => {
           gym_id: gymId,
           member_id: member.id,
           plan_id: resolvedPlanId,
+          plan_cycle_id: resolvedPlanCycle?.id ?? null,
+          plan_cycle_name: cycleName,
+          plan_cycle_days: cycleDays,
           provider: "eduzz",
           provider_subscription_id: providerSubscriptionId,
           status: subscriptionStatus,
@@ -303,6 +397,9 @@ Deno.serve(async (req) => {
         gym_id: gymId,
         member_id: member.id,
         plan_id: resolvedPlanId,
+        plan_cycle_id: resolvedPlanCycle?.id ?? null,
+        plan_cycle_name: cycleName,
+        plan_cycle_days: cycleDays,
         provider: "eduzz",
         provider_payment_id: providerPaymentId,
         amount_cents: amountCents,
@@ -328,20 +425,37 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (activeMembership?.id) {
+        const startAt = new Date();
+        const endAt = new Date(startAt);
+        endAt.setDate(endAt.getDate() + Math.max(1, cycleDays));
+
         await supabase
           .from("memberships")
           .update({
             plan_id: resolvedPlanId ?? activeMembership.plan_id,
+            plan_cycle_id: resolvedPlanCycle?.id ?? null,
+            plan_cycle_name: cycleName,
+            plan_cycle_days: cycleDays,
             status: "active",
+            start_at: startAt.toISOString(),
+            end_at: endAt.toISOString(),
           })
           .eq("id", activeMembership.id);
       } else {
+        const startAt = new Date();
+        const endAt = new Date(startAt);
+        endAt.setDate(endAt.getDate() + Math.max(1, cycleDays));
+
         await supabase.from("memberships").insert({
           gym_id: gymId,
           member_id: member.id,
           plan_id: resolvedPlanId,
+          plan_cycle_id: resolvedPlanCycle?.id ?? null,
+          plan_cycle_name: cycleName,
+          plan_cycle_days: cycleDays,
           status: "active",
-          start_at: new Date().toISOString(),
+          start_at: startAt.toISOString(),
+          end_at: endAt.toISOString(),
         });
       }
 
@@ -380,6 +494,9 @@ Deno.serve(async (req) => {
         gym_id: gymId,
         member_id: member.id,
         plan_id: resolvedPlanId,
+        plan_cycle_id: resolvedPlanCycle?.id ?? null,
+        plan_cycle_name: cycleName,
+        plan_cycle_days: cycleDays,
         payment_status: paymentStatus,
         subscription_status: subscriptionStatus,
       }),

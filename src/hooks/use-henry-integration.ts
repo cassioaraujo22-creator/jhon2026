@@ -37,11 +37,11 @@ export function useSimulateAccess() {
 
   return useMutation({
     mutationFn: async (data: { credential_token: string }) => {
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const supabaseBaseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/+$/, "");
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
       const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/henry-webhook`,
+        `${supabaseBaseUrl}/functions/v1/henry-webhook`,
         {
           method: "POST",
           headers: {

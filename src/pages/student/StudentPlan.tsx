@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, Crown, Check, Sparkles, Zap, Shield, Star, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Crown, Check, Sparkles, Zap, Shield, Star, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useMyMembership } from "@/hooks/use-supabase-data";
@@ -8,6 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useGymInfo } from "@/hooks/use-home-data";
+import { buildEduzzCheckoutUrl, resolveEduzzProductCode, type PlanCycleOption } from "@/lib/eduzz";
+import { buildPlanCycleOptions, isPlanCyclesFeatureUnavailable } from "@/lib/plan-cycles";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const cycleLabels: Record<string, string> = {
   monthly: "Mensal",
@@ -28,23 +32,35 @@ export default function StudentPlan() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: membership, isLoading: membershipLoading } = useMyMembership();
+  const { data: gymInfo } = useGymInfo();
   const { toast } = useToast();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<any | null>(null);
+  const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
 
   // Fetch all available plans for the gym
   const { data: allPlans, isLoading: plansLoading } = useQuery({
     queryKey: ["available-plans", profile?.gym_id],
     enabled: !!profile?.gym_id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const withCycles = await supabase
+        .from("plans")
+        .select("*, plan_cycles(*)")
+        .eq("gym_id", profile!.gym_id!)
+        .eq("active", true)
+        .order("price_cents", { ascending: true });
+      if (!withCycles.error) return withCycles.data ?? [];
+      if (!isPlanCyclesFeatureUnavailable(withCycles.error)) throw withCycles.error;
+
+      const legacy = await supabase
         .from("plans")
         .select("*")
         .eq("gym_id", profile!.gym_id!)
         .eq("active", true)
         .order("price_cents", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
+      if (legacy.error) throw legacy.error;
+      return legacy.data ?? [];
     },
   });
 
@@ -52,13 +68,55 @@ export default function StudentPlan() {
   const currentPlanId = membership?.plan_id;
   const otherPlans = (allPlans ?? []).filter(p => p.id !== currentPlanId);
 
-  const handleUpgrade = async (planId: string) => {
+  const openCycleSelector = (plan: any) => {
+    const cycles = buildPlanCycleOptions(plan).filter((c) => c.active !== false);
+    setCheckoutPlan(plan);
+    setSelectedCycleId(cycles[0]?.id ?? null);
+  };
+
+  const handleUpgrade = async (planId: string, selectedCycle: PlanCycleOption | null) => {
+    const gymSettings = (gymInfo?.settings as Record<string, any> | undefined) ?? {};
+    const eduzzProductCode = resolveEduzzProductCode(gymSettings, planId, selectedCycle);
+    const eduzzCheckoutUrl = buildEduzzCheckoutUrl(gymSettings, planId, selectedCycle);
+
+    // If the plan is mapped in Eduzz, route the user to checkout and let webhook update membership.
+    if (eduzzProductCode) {
+      if (!eduzzCheckoutUrl) {
+        toast({
+          title: "Checkout da Eduzz não configurado",
+          description: "Peça para o admin preencher a URL de checkout da Eduzz em Integrações.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      window.open(eduzzCheckoutUrl, "_blank", "noopener,noreferrer");
+      toast({
+        title: "Redirecionando para pagamento",
+        description: "Finalize a compra na Eduzz para concluir a troca de plano.",
+      });
+      return;
+    }
+
     if (!membership?.id) return;
     setUpgrading(true);
     try {
+      const startAt = new Date();
+      const endAt = new Date(startAt);
+      if (selectedCycle?.duration_days) {
+        endAt.setDate(endAt.getDate() + Math.max(1, selectedCycle.duration_days));
+      }
+
       const { error } = await supabase
         .from("memberships")
-        .update({ plan_id: planId })
+        .update({
+          plan_id: planId,
+          plan_cycle_id: selectedCycle?.id?.startsWith("legacy-") ? null : selectedCycle?.id ?? null,
+          plan_cycle_name: selectedCycle?.cycle_name ?? null,
+          plan_cycle_days: selectedCycle?.duration_days ?? null,
+          start_at: startAt.toISOString(),
+          end_at: selectedCycle?.duration_days ? endAt.toISOString() : null,
+        } as any)
         .eq("id", membership.id);
       if (error) throw error;
       toast({ title: "Plano atualizado!", description: "Seu plano foi alterado com sucesso." });
@@ -70,6 +128,23 @@ export default function StudentPlan() {
     } finally {
       setUpgrading(false);
     }
+  };
+
+  const handleContinueToPayment = async () => {
+    if (!checkoutPlan) return;
+    if (!selectedCycleId) {
+      toast({
+        title: "Selecione um ciclo",
+        description: "Escolha uma opção de assinatura para continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const selectedCycle =
+      buildPlanCycleOptions(checkoutPlan).find((cycle) => cycle.id === selectedCycleId) ?? null;
+    await handleUpgrade(checkoutPlan.id, selectedCycle);
+    setCheckoutPlan(null);
+    setSelectedCycleId(null);
   };
 
   const isLoading = membershipLoading || plansLoading;
@@ -138,7 +213,7 @@ export default function StudentPlan() {
                 R$ {((currentPlan.price_cents ?? 0) / 100).toFixed(2).replace(".", ",")}
               </span>
               <span className="text-sm text-muted-foreground">
-                /{cycleLabels[currentPlan.billing_cycle] ?? currentPlan.billing_cycle}
+                /{membership?.plan_cycle_name ?? cycleLabels[currentPlan.billing_cycle] ?? currentPlan.billing_cycle}
               </span>
             </div>
 
@@ -164,7 +239,11 @@ export default function StudentPlan() {
                     <Star className="w-3.5 h-3.5 text-primary" />
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Duração</span>
                   </div>
-                  <p className="text-sm font-semibold text-foreground">{currentPlan.duration_weeks} semanas</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {membership?.plan_cycle_days
+                      ? `${membership.plan_cycle_days} dias`
+                      : `${currentPlan.duration_weeks} semanas`}
+                  </p>
                 </div>
               )}
               <div className="rounded-2xl bg-card/60 backdrop-blur-sm border border-border/50 p-3 space-y-1">
@@ -228,6 +307,8 @@ export default function StudentPlan() {
             {otherPlans.map((plan, i) => {
               const isUpgrade = (plan.price_cents ?? 0) > (currentPlan?.price_cents ?? 0);
               const isSelected = selectedPlanId === plan.id;
+              const cycles = buildPlanCycleOptions(plan).filter((c) => c.active !== false);
+              const startingPrice = Math.min(...cycles.map((c) => c.price_cents));
 
               return (
                 <div
@@ -258,7 +339,9 @@ export default function StudentPlan() {
                       <div>
                         <p className="text-sm font-semibold text-foreground">{plan.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-muted-foreground">{goalLabels[plan.goal_type] ?? plan.goal_type}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {cycles.length > 1 ? `${cycles.length} opções` : (cycles[0]?.cycle_name ?? "Plano")}
+                          </span>
                           {plan.level && (
                             <>
                               <span className="text-xs text-border">•</span>
@@ -270,9 +353,9 @@ export default function StudentPlan() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-foreground">
-                        R$ {((plan.price_cents ?? 0) / 100).toFixed(2).replace(".", ",")}
+                        R$ {(startingPrice / 100).toFixed(2).replace(".", ",")}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{cycleLabels[plan.billing_cycle] ?? plan.billing_cycle}</p>
+                      <p className="text-[10px] text-muted-foreground">{cycles.length > 1 ? "A partir de" : `${cycles[0]?.duration_days ?? 0} dias`}</p>
                     </div>
                   </div>
 
@@ -296,7 +379,7 @@ export default function StudentPlan() {
                         disabled={upgrading}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleUpgrade(plan.id);
+                          openCycleSelector(plan);
                         }}
                       >
                         {upgrading ? (
@@ -323,6 +406,64 @@ export default function StudentPlan() {
           <p className="text-sm text-muted-foreground">Nenhum outro plano disponível no momento</p>
         </div>
       )}
+
+      <Dialog open={!!checkoutPlan} onOpenChange={(open) => !open && setCheckoutPlan(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Escolha seu plano</DialogTitle>
+          </DialogHeader>
+          {checkoutPlan ? (
+            <div className="space-y-3 py-2">
+              <div className="rounded-xl border border-border bg-secondary/30 p-3">
+                <p className="text-sm font-semibold text-foreground">{checkoutPlan.name}</p>
+                <p className="text-xs text-muted-foreground">Selecione o ciclo para continuar no pagamento</p>
+              </div>
+              <div className="space-y-2 max-h-[42vh] overflow-auto pr-1">
+                {buildPlanCycleOptions(checkoutPlan)
+                  .filter((cycle) => cycle.active !== false)
+                  .map((cycle) => {
+                    const selected = selectedCycleId === cycle.id;
+                    return (
+                      <button
+                        key={cycle.id}
+                        type="button"
+                        onClick={() => setSelectedCycleId(cycle.id)}
+                        className={cn(
+                          "w-full text-left rounded-xl border p-3 transition-all",
+                          selected
+                            ? "border-primary bg-primary/10 shadow-md shadow-primary/10"
+                            : "border-border bg-card hover:border-primary/30"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{cycle.cycle_name}</p>
+                            <p className="text-xs text-muted-foreground">{cycle.duration_days} dias</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-foreground">
+                              R$ {(cycle.price_cents / 100).toFixed(2).replace(".", ",")}
+                            </p>
+                            {selected ? <p className="text-[10px] text-primary">Selecionado</p> : null}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setCheckoutPlan(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="glow" disabled={!selectedCycleId || upgrading} onClick={handleContinueToPayment}>
+              {upgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Continuar para pagamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

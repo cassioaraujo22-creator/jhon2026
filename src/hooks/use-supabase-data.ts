@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { isPlanCyclesFeatureUnavailable } from "@/lib/plan-cycles";
 
 // ==========================================
 // STUDENT HOOKS
@@ -240,12 +241,19 @@ export function useGymPlans() {
     queryKey: ["gym-plans", profile?.gym_id],
     enabled: !!profile?.gym_id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const withCycles = await supabase
+        .from("plans")
+        .select("*, plan_cycles(*)")
+        .eq("gym_id", profile!.gym_id!);
+      if (!withCycles.error) return withCycles.data ?? [];
+      if (!isPlanCyclesFeatureUnavailable(withCycles.error)) throw withCycles.error;
+
+      const legacy = await supabase
         .from("plans")
         .select("*")
         .eq("gym_id", profile!.gym_id!);
-      if (error) throw error;
-      return data ?? [];
+      if (legacy.error) throw legacy.error;
+      return legacy.data ?? [];
     },
   });
 }
