@@ -8,6 +8,7 @@ const DEFAULT_APP_NAME = "App";
 const DEFAULT_DESCRIPTION = "Seus treinos em alta performance";
 const APP_NAME_STORAGE_KEY = "app_display_name";
 const GYM_NAME_STORAGE_KEY = "gym_display_name";
+const APP_ICON_STORAGE_KEY = "app_primary_icon_url";
 
 function ensureMetaTag(name: string, attribute: "name" | "property" = "name") {
   const selector = `meta[${attribute}="${name}"]`;
@@ -40,8 +41,13 @@ export default function PwaAndPushManager() {
     try {
       const cachedGymName = localStorage.getItem(GYM_NAME_STORAGE_KEY)?.trim() ?? "";
       const cachedAppName = localStorage.getItem(APP_NAME_STORAGE_KEY)?.trim() ?? "";
+      const cachedIcon = localStorage.getItem(APP_ICON_STORAGE_KEY)?.trim() ?? "";
       if (cachedGymName || cachedAppName) {
         setPublicGymName(cachedGymName || cachedAppName);
+      }
+      if (cachedIcon) {
+        const favicon = ensureLinkTag("icon");
+        favicon.href = cachedIcon;
       }
     } catch (_error) {
       // Ignore localStorage failures.
@@ -78,6 +84,7 @@ export default function PwaAndPushManager() {
   const themeColor = (settings.pwa_theme_color as string) || gym?.accent_color || "#7148EC";
   const backgroundColor = (settings.pwa_background_color as string) || "#0b0b12";
   const appIcon =
+    (settings.favicon_url as string) ||
     (settings.pwa_icon_url as string) ||
     (settings.app_logo_url as string) ||
     gym?.logo_url ||
@@ -100,6 +107,11 @@ export default function PwaAndPushManager() {
       localStorage.setItem(APP_NAME_STORAGE_KEY, appName);
       if (gym?.name) {
         localStorage.setItem(GYM_NAME_STORAGE_KEY, gym.name);
+      }
+      if (appIcon) {
+        localStorage.setItem(APP_ICON_STORAGE_KEY, appIcon);
+      } else {
+        localStorage.removeItem(APP_ICON_STORAGE_KEY);
       }
     } catch (_error) {
       // Ignore storage failures in private mode.
@@ -126,11 +138,14 @@ export default function PwaAndPushManager() {
 
   useEffect(() => {
     const favicon = ensureLinkTag("icon");
+    const appleIcon = ensureLinkTag("apple-touch-icon");
     if (appIcon) {
       favicon.href = appIcon;
+      appleIcon.href = appIcon;
       return;
     }
     favicon.removeAttribute("href");
+    appleIcon.removeAttribute("href");
   }, [appIcon]);
 
   useEffect(() => {

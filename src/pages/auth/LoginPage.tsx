@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, User as UserIcon } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import onboarding3 from "@/assets/onboarding-3.jpg";
 const gridImages = [onboarding1, onboarding2, onboarding3, onboarding1, onboarding2, onboarding3];
 const APP_NAME_STORAGE_KEY = "app_display_name";
 const GYM_NAME_STORAGE_KEY = "gym_display_name";
+const APP_ICON_STORAGE_KEY = "app_primary_icon_url";
 const DEFAULT_APP_NAME = "App";
 
 export default function LoginPage() {
@@ -22,6 +23,7 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [appName, setAppName] = useState(DEFAULT_APP_NAME);
+  const [appIcon, setAppIcon] = useState("");
   const navigate = useNavigate();
   const { signIn, signUp, session } = useAuth();
   const { toast } = useToast();
@@ -36,10 +38,12 @@ export default function LoginPage() {
       const storedName =
         localStorage.getItem(GYM_NAME_STORAGE_KEY)?.trim() ||
         localStorage.getItem(APP_NAME_STORAGE_KEY)?.trim();
+      const storedIcon = localStorage.getItem(APP_ICON_STORAGE_KEY)?.trim() ?? "";
       if (storedName) {
         setAppName(storedName);
-        return;
       }
+      if (storedIcon) setAppIcon(storedIcon);
+      if (storedName && storedIcon) return;
     } catch (_error) {
       // Ignore localStorage access issues.
     }
@@ -48,10 +52,19 @@ export default function LoginPage() {
       const { data, error } = await supabase.rpc("get_public_onboarding_config");
       if (error || !data || !mounted) return;
       const gymName = String((data as any)?.gym_name ?? "").trim();
+      const settings = ((data as any)?.settings ?? {}) as Record<string, any>;
+      const iconUrl = String(
+        settings?.favicon_url ??
+        settings?.pwa_icon_url ??
+        settings?.app_logo_url ??
+        ""
+      ).trim();
       if (!gymName) return;
       setAppName(gymName);
+      if (iconUrl) setAppIcon(iconUrl);
       try {
         localStorage.setItem(GYM_NAME_STORAGE_KEY, gymName);
+        if (iconUrl) localStorage.setItem(APP_ICON_STORAGE_KEY, iconUrl);
       } catch (_cacheError) {
         // Ignore localStorage access issues.
       }
@@ -112,8 +125,12 @@ export default function LoginPage() {
         {/* Logo & Title */}
         <div className="text-center space-y-2 mb-8">
           <div className="flex items-center justify-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center glow-purple">
-              <Dumbbell className="w-5 h-5 text-primary" />
+            <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center glow-purple overflow-hidden">
+              {appIcon ? (
+                <img src={appIcon} alt="Ícone do app" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-sm font-bold text-primary">{(appName?.[0] ?? "A").toUpperCase()}</span>
+              )}
             </div>
           </div>
           <h1 className="text-2xl font-bold text-foreground">

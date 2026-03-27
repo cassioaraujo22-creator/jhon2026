@@ -23,6 +23,7 @@ export default function AdminSettings() {
   const noPlanBannerFileRef = useRef<HTMLInputElement>(null);
   const logoFileRef = useRef<HTMLInputElement>(null);
   const pwaIconFileRef = useRef<HTMLInputElement>(null);
+  const faviconFileRef = useRef<HTMLInputElement>(null);
   const promoBannerFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function AdminSettings() {
   const heroImageUrl = settings?.hero_image_url as string | undefined;
   const noPlanBannerImageUrl = settings?.no_plan_banner_image_url as string | undefined;
   const pwaIconUrl = (settings?.pwa_icon_url as string | undefined) ?? logoUrl ?? undefined;
+  const faviconUrl = (settings?.favicon_url as string | undefined) ?? pwaIconUrl ?? logoUrl ?? undefined;
   const homePromoBanner = (settings?.home_promo_banner as any) ?? {};
   const pushEnabled = Boolean(settings?.push_enabled);
   const vapidPublicKey = (settings?.push_vapid_public_key as string | undefined) ?? "";
@@ -155,6 +157,30 @@ export default function AdminSettings() {
     setSettings((prev: any) => ({ ...prev, pwa_icon_url: null }));
   };
 
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !gym || !profile?.id) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${profile.id}/gym/${gym.id}/favicon.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = urlData.publicUrl + "?t=" + Date.now();
+      setSettings((prev: any) => ({ ...prev, favicon_url: url }));
+      toast({ title: "Favicon carregado!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao enviar favicon", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeFavicon = () => {
+    setSettings((prev: any) => ({ ...prev, favicon_url: null }));
+  };
+
   const updateHomePromoBanner = (updates: Record<string, any>) => {
     setSettings((prev: any) => ({
       ...prev,
@@ -220,6 +246,7 @@ export default function AdminSettings() {
     try {
       localStorage.setItem("gym_display_name", name.trim());
       localStorage.setItem("force_update_required", String(Boolean(settings?.force_update_required)));
+      localStorage.setItem("app_primary_icon_url", String(faviconUrl ?? ""));
     } catch (_error) {
       // Ignore localStorage access failures.
     }
@@ -250,6 +277,7 @@ export default function AdminSettings() {
         <p className="text-xs text-muted-foreground">Defina nome, logo e identidade visual para PWA e aplicativo</p>
         <input type="file" ref={logoFileRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
         <input type="file" ref={pwaIconFileRef} accept="image/*" onChange={handlePwaIconUpload} className="hidden" />
+        <input type="file" ref={faviconFileRef} accept="image/*" onChange={handleFaviconUpload} className="hidden" />
 
         {logoUrl ? (
           <div className="relative rounded-xl overflow-hidden h-32 bg-secondary/40 border border-border">
@@ -310,6 +338,39 @@ export default function AdminSettings() {
             >
               {uploading ? <Loader2 className="w-5 h-5 text-primary animate-spin" /> : <ImageIcon className="w-5 h-5 text-muted-foreground" />}
               <span className="text-xs text-muted-foreground">Enviar ícone do app (recomendado 512x512)</span>
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm text-muted-foreground">Favicon (ícone principal)</label>
+          {faviconUrl ? (
+            <div className="relative rounded-xl overflow-hidden h-20 bg-secondary/40 border border-border">
+              <img src={faviconUrl} alt="Favicon" className="w-full h-full object-contain p-2" />
+              <div className="absolute top-2 right-2 flex gap-2">
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="w-8 h-8 rounded-lg"
+                  onClick={() => faviconFileRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                </Button>
+                <Button size="icon" variant="destructive" className="w-8 h-8 rounded-lg" onClick={removeFavicon}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => faviconFileRef.current?.click()}
+              disabled={uploading}
+              className="w-full h-20 rounded-xl border-2 border-dashed border-border hover:border-primary/40 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              {uploading ? <Loader2 className="w-5 h-5 text-primary animate-spin" /> : <ImageIcon className="w-5 h-5 text-muted-foreground" />}
+              <span className="text-xs text-muted-foreground">Enviar favicon (preferência 512x512 ou 192x192)</span>
             </button>
           )}
         </div>
