@@ -18,7 +18,6 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["pwa-icon.svg"],
       workbox: {
         // Workaround for intermittent Workbox terser crash on Node 24 during build.
         mode: "development",
@@ -31,14 +30,7 @@ export default defineConfig(({ mode }) => ({
         background_color: "#0b0b12",
         display: "standalone",
         start_url: "/",
-        icons: [
-          {
-            src: "/pwa-icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
-            purpose: "any maskable",
-          },
-        ],
+        icons: [],
       },
     }),
   ].filter(Boolean),

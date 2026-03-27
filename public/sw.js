@@ -8,10 +8,12 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "Nova notificação";
+  const iconOptions = {};
+  if (payload.icon) iconOptions.icon = payload.icon;
+  if (payload.badge) iconOptions.badge = payload.badge;
   const options = {
     body: payload.body || "Você recebeu uma atualização.",
-    icon: payload.icon || "/pwa-icon.svg",
-    badge: payload.badge || "/pwa-icon.svg",
+    ...iconOptions,
     data: {
       url: payload.url || "/app",
       notificationId: payload.notificationId || null,

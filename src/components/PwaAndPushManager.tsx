@@ -6,7 +6,6 @@ import { usePwaPush } from "@/hooks/use-pwa-push";
 
 const DEFAULT_APP_NAME = "Fit Pro Wave";
 const DEFAULT_DESCRIPTION = "Seus treinos em alta performance";
-const DEFAULT_ICON = "/pwa-icon.svg";
 
 function ensureMetaTag(name: string, attribute: "name" | "property" = "name") {
   const selector = `meta[${attribute}="${name}"]`;
@@ -44,7 +43,7 @@ export default function PwaAndPushManager() {
     (settings.pwa_icon_url as string) ||
     (settings.app_logo_url as string) ||
     gym?.logo_url ||
-    DEFAULT_ICON;
+    "";
   const pushEnabled = Boolean(settings.push_enabled);
   const pushAutoPrompt = Boolean(settings.push_auto_prompt);
   const vapidPublicKey = (settings.push_vapid_public_key as string) || "";
@@ -86,7 +85,11 @@ export default function PwaAndPushManager() {
 
   useEffect(() => {
     const favicon = ensureLinkTag("icon");
-    favicon.href = appIcon;
+    if (appIcon) {
+      favicon.href = appIcon;
+      return;
+    }
+    favicon.removeAttribute("href");
   }, [appIcon]);
 
   useEffect(() => {
@@ -98,14 +101,16 @@ export default function PwaAndPushManager() {
       background_color: backgroundColor,
       display: "standalone",
       start_url: "/",
-      icons: [
-        {
-          src: appIcon,
-          sizes: "192x192",
-          type: appIcon.endsWith(".svg") ? "image/svg+xml" : "image/png",
-          purpose: "any maskable",
-        },
-      ],
+      icons: appIcon
+        ? [
+            {
+              src: appIcon,
+              sizes: "192x192",
+              type: appIcon.endsWith(".svg") ? "image/svg+xml" : "image/png",
+              purpose: "any maskable",
+            },
+          ]
+        : [],
     };
 
     const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
@@ -160,10 +165,10 @@ export default function PwaAndPushManager() {
             id?: string;
           };
           const registration = await navigator.serviceWorker.ready;
+          const iconOptions = appIcon ? { icon: appIcon, badge: appIcon } : {};
           await registration.showNotification(row.title || "Nova notificação", {
             body: row.message || "Você recebeu uma atualização.",
-            icon: appIcon,
-            badge: appIcon,
+            ...iconOptions,
             data: {
               url: row.action_url || "/app",
               notificationId: row.id || null,

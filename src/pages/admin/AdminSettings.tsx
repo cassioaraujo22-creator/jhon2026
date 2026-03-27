@@ -453,10 +453,13 @@ export default function AdminSettings() {
                 return;
               }
               const registration = await navigator.serviceWorker.ready;
+              const notificationIcon = pwaIconUrl || logoUrl || "";
+              const iconOptions = notificationIcon
+                ? { icon: notificationIcon, badge: notificationIcon }
+                : {};
               await registration.showNotification("Push de teste", {
                 body: "Configuração de notificações funcionando.",
-                icon: pwaIconUrl || logoUrl || "/pwa-icon.svg",
-                badge: pwaIconUrl || logoUrl || "/pwa-icon.svg",
+                ...iconOptions,
                 data: { url: "/app" },
               });
               toast({ title: "Notificação de teste enviada" });
