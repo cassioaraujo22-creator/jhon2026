@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dumbbell, Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import onboarding1 from "@/assets/onboarding-1.jpg";
 import onboarding2 from "@/assets/onboarding-2.jpg";
 import onboarding3 from "@/assets/onboarding-3.jpg";
@@ -11,7 +12,7 @@ import onboarding3 from "@/assets/onboarding-3.jpg";
 const gridImages = [onboarding1, onboarding2, onboarding3, onboarding1, onboarding2, onboarding3];
 const APP_NAME_STORAGE_KEY = "app_display_name";
 const GYM_NAME_STORAGE_KEY = "gym_display_name";
-const DEFAULT_APP_NAME = "Fit Pro Wave";
+const DEFAULT_APP_NAME = "App";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -30,14 +31,36 @@ export default function LoginPage() {
   }, [session, navigate]);
 
   useEffect(() => {
+    let mounted = true;
     try {
       const storedName =
         localStorage.getItem(GYM_NAME_STORAGE_KEY)?.trim() ||
         localStorage.getItem(APP_NAME_STORAGE_KEY)?.trim();
-      if (storedName) setAppName(storedName);
+      if (storedName) {
+        setAppName(storedName);
+        return;
+      }
     } catch (_error) {
       // Ignore localStorage access issues.
     }
+
+    const loadPublicGymName = async () => {
+      const { data, error } = await supabase.rpc("get_public_onboarding_config");
+      if (error || !data || !mounted) return;
+      const gymName = String((data as any)?.gym_name ?? "").trim();
+      if (!gymName) return;
+      setAppName(gymName);
+      try {
+        localStorage.setItem(GYM_NAME_STORAGE_KEY, gymName);
+      } catch (_cacheError) {
+        // Ignore localStorage access issues.
+      }
+    };
+
+    void loadPublicGymName();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (session) return null;

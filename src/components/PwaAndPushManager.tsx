@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGymSettings } from "@/hooks/use-supabase-data";
 import { usePwaPush } from "@/hooks/use-pwa-push";
 
-const DEFAULT_APP_NAME = "Fit Pro Wave";
+const DEFAULT_APP_NAME = "App";
 const DEFAULT_DESCRIPTION = "Seus treinos em alta performance";
 const APP_NAME_STORAGE_KEY = "app_display_name";
 const GYM_NAME_STORAGE_KEY = "gym_display_name";
@@ -34,9 +34,45 @@ export default function PwaAndPushManager() {
   const { user, profile } = useAuth();
   const { data: gym } = useGymSettings();
   const manifestUrlRef = useRef<string | null>(null);
+  const [publicGymName, setPublicGymName] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const cachedGymName = localStorage.getItem(GYM_NAME_STORAGE_KEY)?.trim() ?? "";
+      const cachedAppName = localStorage.getItem(APP_NAME_STORAGE_KEY)?.trim() ?? "";
+      if (cachedGymName || cachedAppName) {
+        setPublicGymName(cachedGymName || cachedAppName);
+      }
+    } catch (_error) {
+      // Ignore localStorage failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (gym?.name) return;
+    let mounted = true;
+
+    const loadPublicGymName = async () => {
+      const { data, error } = await supabase.rpc("get_public_onboarding_config");
+      if (error || !data || !mounted) return;
+      const gymName = String((data as any)?.gym_name ?? "").trim();
+      if (!gymName) return;
+      setPublicGymName(gymName);
+      try {
+        localStorage.setItem(GYM_NAME_STORAGE_KEY, gymName);
+      } catch (_cacheError) {
+        // Ignore localStorage failures.
+      }
+    };
+
+    void loadPublicGymName();
+    return () => {
+      mounted = false;
+    };
+  }, [gym?.name]);
 
   const settings = (gym?.settings as Record<string, unknown> | null) ?? {};
-  const appName = (settings.app_display_name as string) || gym?.name || DEFAULT_APP_NAME;
+  const appName = (settings.app_display_name as string) || gym?.name || publicGymName || DEFAULT_APP_NAME;
   const shortName = (settings.pwa_short_name as string) || appName;
   const description = (settings.pwa_description as string) || DEFAULT_DESCRIPTION;
   const themeColor = (settings.pwa_theme_color as string) || gym?.accent_color || "#7148EC";

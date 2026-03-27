@@ -54,8 +54,8 @@ export default defineConfig(({ mode }) => {
           mode: "development",
         },
         manifest: {
-          name: "Fit Pro Wave",
-          short_name: "FitPro",
+          name: "App",
+          short_name: "App",
           description: "Seus treinos em alta performance",
           theme_color: "#7148EC",
           background_color: "#0b0b12",
