@@ -314,9 +314,9 @@ export default function AdminPlans() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
           <DialogHeader><DialogTitle>{editing ? "Editar Plano" : "Novo Plano"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto pr-1 flex-1 min-h-0">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Nome</label>
               <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex: Hipertrofia Iniciante"
@@ -443,7 +443,7 @@ export default function AdminPlans() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-3 border-t border-border">
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={createPlan.isPending || updatePlan.isPending}>
               {(createPlan.isPending || updatePlan.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
