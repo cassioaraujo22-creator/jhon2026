@@ -6,6 +6,8 @@ import { usePwaPush } from "@/hooks/use-pwa-push";
 
 const DEFAULT_APP_NAME = "Fit Pro Wave";
 const DEFAULT_DESCRIPTION = "Seus treinos em alta performance";
+const APP_NAME_STORAGE_KEY = "app_display_name";
+const GYM_NAME_STORAGE_KEY = "gym_display_name";
 
 function ensureMetaTag(name: string, attribute: "name" | "property" = "name") {
   const selector = `meta[${attribute}="${name}"]`;
@@ -63,6 +65,14 @@ export default function PwaAndPushManager() {
 
   useEffect(() => {
     document.title = appName;
+    try {
+      localStorage.setItem(APP_NAME_STORAGE_KEY, appName);
+      if (gym?.name) {
+        localStorage.setItem(GYM_NAME_STORAGE_KEY, gym.name);
+      }
+    } catch (_error) {
+      // Ignore storage failures in private mode.
+    }
 
     const ogTitle = ensureMetaTag("og:title", "property");
     ogTitle.content = appName;
@@ -81,7 +91,7 @@ export default function PwaAndPushManager() {
 
     const theme = ensureMetaTag("theme-color");
     theme.content = themeColor;
-  }, [appName, description, themeColor]);
+  }, [appName, description, gym?.name, themeColor]);
 
   useEffect(() => {
     const favicon = ensureLinkTag("icon");

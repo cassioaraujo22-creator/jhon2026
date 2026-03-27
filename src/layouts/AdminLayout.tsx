@@ -1,7 +1,7 @@
 import { NavLink, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Dumbbell, CreditCard, Shield,
-  BarChart3, Settings, Zap, ChevronLeft, Menu, DollarSign, LogOut, ShoppingBag, UserCheck, ExternalLink, ListChecks, Apple
+  BarChart3, Settings, Zap, ChevronLeft, Menu, DollarSign, LogOut, ShoppingBag, UserCheck, ExternalLink, ListChecks, Apple, Clapperboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -23,6 +23,7 @@ const sidebarItems = [
   { to: "/admin/reports", icon: BarChart3, label: "Relatórios" },
   { to: "/admin/integrations", icon: Zap, label: "Integrações" },
   { to: "/admin/nutrition", icon: Apple, label: "Nutricionista" },
+  { to: "/admin/onboarding", icon: Clapperboard, label: "Onboarding" },
   { to: "/admin/settings", icon: Settings, label: "Configurações" },
 ];
 

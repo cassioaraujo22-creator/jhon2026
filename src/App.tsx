@@ -45,6 +45,7 @@ import AdminAccessControl from "./pages/admin/AdminAccessControl";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminIntegrations from "./pages/admin/AdminIntegrations";
 import AdminNutrition from "./pages/admin/AdminNutrition";
+import AdminOnboarding from "./pages/admin/AdminOnboarding";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminPersonalTrainers from "./pages/admin/AdminPersonalTrainers";
 import AdminStoreDashboard from "./pages/admin/AdminStoreDashboard";
@@ -116,6 +117,7 @@ const App = () => (
               <Route path="reports" element={<AdminReports />} />
               <Route path="integrations" element={<AdminIntegrations />} />
               <Route path="nutrition" element={<AdminNutrition />} />
+              <Route path="onboarding" element={<AdminOnboarding />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="store" element={<AdminStoreDashboard />}>
                 <Route path="categories" element={<AdminStoreCategories />} />

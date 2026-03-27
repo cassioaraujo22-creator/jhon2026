@@ -217,6 +217,11 @@ export default function AdminSettings() {
     }
 
     await updateGym.mutateAsync({ name, accent_color: accentColor, timezone, logo_url: logoUrl, settings });
+    try {
+      localStorage.setItem("gym_display_name", name.trim());
+    } catch (_error) {
+      // Ignore localStorage access failures.
+    }
   };
 
   const toggleSetting = (key: string) => {

@@ -9,6 +9,9 @@ import onboarding2 from "@/assets/onboarding-2.jpg";
 import onboarding3 from "@/assets/onboarding-3.jpg";
 
 const gridImages = [onboarding1, onboarding2, onboarding3, onboarding1, onboarding2, onboarding3];
+const APP_NAME_STORAGE_KEY = "app_display_name";
+const GYM_NAME_STORAGE_KEY = "gym_display_name";
+const DEFAULT_APP_NAME = "Fit Pro Wave";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -17,6 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [appName, setAppName] = useState(DEFAULT_APP_NAME);
   const navigate = useNavigate();
   const { signIn, signUp, session } = useAuth();
   const { toast } = useToast();
@@ -24,6 +28,17 @@ export default function LoginPage() {
   useEffect(() => {
     if (session) navigate("/app", { replace: true });
   }, [session, navigate]);
+
+  useEffect(() => {
+    try {
+      const storedName =
+        localStorage.getItem(GYM_NAME_STORAGE_KEY)?.trim() ||
+        localStorage.getItem(APP_NAME_STORAGE_KEY)?.trim();
+      if (storedName) setAppName(storedName);
+    } catch (_error) {
+      // Ignore localStorage access issues.
+    }
+  }, []);
 
   if (session) return null;
 
@@ -79,10 +94,10 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-foreground">
-            {isSignUp ? "Crie sua conta" : "Bem-vindo ao FitPro"}
+            {isSignUp ? `Crie sua conta na ${appName}` : `Bem-vindo ao ${appName}`}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Preencha seus dados para começar" : "O melhor app para sua jornada fitness"}
+            {isSignUp ? `Preencha seus dados para começar na ${appName}` : `${appName} para sua jornada fitness`}
           </p>
         </div>
 
